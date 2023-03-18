@@ -4,33 +4,42 @@ import random
 from pathlib import Path
 
 import pandas as pd
-from PIL import Image
-from datasets import load_dataset
+from PIL import Image as PILImage
+from tqdm import tqdm
+from datasets import Dataset, Image, Features, Value
 
 base_path = Path("../icon-data-2")
 files = list(base_path.glob("*.png"))
 # remove files with non-one aspect ratio
-img_files = []
+imgs_data = []
 tags_info = []
-for fn in files:
-    im = Image.open(fn)
+feature = Image()
+for fn in tqdm(files):
+    im = PILImage.open(fn)
     w, h = im.size
     if w == h:
-        img_files.append(str(fn))
+        im = im.resize((128, 128))
+        im = feature.encode_example(im)
+        imgs_data.append(im)
         with open(fn.with_suffix(".json"), "r") as f:
             tags = json.load(f)
         random.shuffle(tags)
-        tags_info.append("bw-icon:" + ", ".join(tags))
-    im.close()
+        tags = ["bw-icon"] + tags
+        tags_info.append(", ".join(tags))
 
-df = pd.DataFrame({"image": img_files, "tags": tags_info})
-df.to_csv("icon_data.csv", index=False)
-
-# build and push to huggingface datasets
-dataset = load_dataset("csv", data_files="icon_data.csv")
-# also load the images
-dataset = dataset.map(
-    lambda x: {"image": Image.open(x["image"]).resize((128, 128))},
-    remove_columns=["image"],
+dataset = Dataset.from_pandas(
+    pd.DataFrame(
+        {
+            "image": imgs_data,
+            "tags": tags_info,
+        }
+    ),
+    features=Features(
+        {
+            "image": feature,
+            "tags": Value("string"),
+        }
+    ),
 )
+# next(iter(dataset))
 dataset.push_to_hub("naxalpha/stable-icons-128")
