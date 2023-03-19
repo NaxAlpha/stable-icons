@@ -19,7 +19,12 @@ for fn in tqdm(files):
     w, h = im.size
     if w == h:
         im = im.resize((128, 128))
-        im = feature.encode_example(im)
+        img = PILImage.new("RGB", (128, 128), (255, 255, 255))
+        try:
+            img.paste(im, (0, 0), im)
+        except:
+            continue
+        im = feature.encode_example(img)
         imgs_data.append(im)
         with open(fn.with_suffix(".json"), "r") as f:
             tags = json.load(f)
